@@ -3,7 +3,10 @@ driver:
   name: docker
 platforms:
   - name: instance
-    image: archlinux:base-devel
+    image: debian:11
+    capabilities:
+      - AUDIT_CONTROL
+      - SYS_ADMIN
     pre_build_image: false
 provisioner:
   name: ansible

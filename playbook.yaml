@@ -1,0 +1,48 @@
+- name: Configure auditd and stuff
+  hosts: all
+  vars:
+    kuma_host: 'localhost'
+    kuma_port: '1337'
+    velociraptor_deb_link: 'https://example.com/velociraptor.deb'
+  tasks:
+    - name: Install auditd
+      ansible.builtin.apt:
+        update_cache: true
+        package:
+          - auditd
+          - audispd-plugins
+      when: ansible_pkg_mgr == "apt"
+
+    - name: Copy audit.rules
+      ansible.builtin.copy:
+        src: ./config/audit.rules
+        dest: /etc/audit/rules.d/audit.rules
+        mode: '0660'
+
+    - name: Enable && start auditd
+      ansible.builtin.service:
+        name: auditd
+        enabled: true
+        state: restarted
+
+    - name: Install rsyslog
+      ansible.builtin.apt:
+        update_cache: true
+        package:
+          - rsyslog
+
+    - name: Templating rsyslog
+      ansible.builtin.template:
+        src: ./config/rsyslog.j2
+        dest: /etc/rsyslog.d/audit.conf
+        mode: '0660'
+
+    - name: Enable && start rsyslog
+      ansible.builtin.service:
+        name: rsyslog
+        enabled: true
+        state: restarted
+
+    - name: Install velociraptor
+      ansible.builtin.apt:
+        deb: "{{ velociraptor_deb_link }}"
