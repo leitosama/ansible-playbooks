@@ -8,6 +8,12 @@
       - cadm
       - sadmin
   tasks:
+    - name: Backup /etc/shadow
+      ansible.builtin.fetch:
+        src: /etc/shadow
+        dest: ./shadows.bkp/shadow-{{ inventory_hostname }}
+        flat: yes
+
     - name: Get all users
       ansible.builtin.getent:
         database: passwd
@@ -98,6 +104,16 @@
         chain: INPUT
         protocol: all
         jump: DROP
+
+- name: Fix FTP vuln
+  hosts: ftp
+  strategy: free
+  gather_facts: False
+  tasks:
+    - name: Fix /var/www/html mode
+      ansible.builtin.file:
+        name: /var/www/html
+        mode: 0755
 
 - name: Install tools
   hosts: linux

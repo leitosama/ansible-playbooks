@@ -9,5 +9,8 @@ velociraptor_deb_link=https://changeme/changeme/velociraptor_client.deb
 kesl_link=https://changeme/changeme/kesl_12.0.0-6672.sh
 klnagent_link=https://changeme/changeme/klnagent64_15.0.0-12912_amd64.sh
 
-[linux]
-127.0.0.1 chpasswd_users='["changeme"]' ports='["80","443"]'
+[linux:children]
+ftp
+
+[ftp]
+714186ef255f.vps.myjino.ru chpasswd_users='["mail"]' ports='["80","443"]'
