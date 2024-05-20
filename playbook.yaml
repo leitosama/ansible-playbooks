@@ -1,6 +1,6 @@
 - name: Configure users
   hosts: linux
-  gather_facts: False
+  gather_facts: false
   vars:
     ansible_ssh_pass: "{{ old_password }}"
     service_accounts:
@@ -58,10 +58,8 @@
 
 - name: Configure iptables
   hosts: linux
-  vars:
-    ansible_ssh_pass: "{{ new_password }}"
-  gather_facts: False
   strategy: free
+  gather_facts: false
   tasks:
     - name: iptables ACCEPT ESTABLISHED
       ansible.builtin.iptables:
@@ -105,22 +103,20 @@
         protocol: all
         jump: DROP
 
-- name: Fix FTP vuln
-  hosts: ftp
-  strategy: free
-  gather_facts: False
-  tasks:
-    - name: Fix /var/www/html mode
-      ansible.builtin.file:
-        name: /var/www/html
-        mode: 0755
+# - name: Fix FTP vuln
+#   hosts: ftp
+#   strategy: free
+#   gather_facts: false
+#   tasks:
+#     - name: Fix /var/www/html mode
+#       ansible.builtin.file:
+#         name: /var/www/html
+#         mode: 0755
 
 - name: Install tools
   hosts: linux
-  vars:
-    ansible_ssh_pass: "{{ new_password }}"
-  gather_facts: False
   strategy: free
+  gather_facts: false
   tasks:
     - name: Download KESL
       ansible.builtin.get_url:
@@ -142,8 +138,32 @@
     - name: Install klnagent
       ansible.builtin.command: /bin/bash /tmp/klnagent.sh
       args:
-        creates: /opt/kaspersky/klnagent/lib/bin/setup/postinstall.pl
+        creates: /opt/kaspersky/klnagent64/lib/bin/setup/postinstall.pl
 
     - name: Install velociraptor
       ansible.builtin.apt:
         deb: "{{ velociraptor_deb_link }}"
+
+    - name: Add wazuh keys to keyring
+      ansible.builtin.apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+
+    - name: Add wazuh repo 
+      ansible.builtin.apt_repository:
+        repo: deb https://packages.wazuh.com/4.x/apt/ stable main
+    
+    - name: Install wazuh-agent
+      ansible.builtin.apt:
+        name:
+          - wazuh-agent
+          - auditd
+          - audispd-plugins
+      environment:
+        WAZUH_MANAGER: "{{ wazuh_manager }}"
+    
+    - name: Run systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        name: wazuh-agent
+        enabled: true
+        state: started
