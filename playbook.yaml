@@ -3,6 +3,10 @@
   gather_facts: False
   vars:
     ansible_ssh_pass: "{{ old_password }}"
+    service_accounts:
+      - suconf
+      - cadm
+      - sadmin
   tasks:
     - name: Get all users
       ansible.builtin.getent:
@@ -18,7 +22,7 @@
 
     - name: Add users from inventory.ini
       ansible.builtin.set_fact:
-        chpasswd_users: "{{ chpasswd_users|default([]) + login_users }}"
+        chpasswd_users: "{{ chpasswd_users|default([]) + login_users | difference(service_accounts) }}"
 
     - name: Get chpasswd_users
       ansible.builtin.debug:
