@@ -1,44 +1,83 @@
-- name: Configure auditd and stuff
-  hosts: all
+- name: Configure linux
+  hosts: linux
   tasks:
-    - name: Install auditd
-      ansible.builtin.apt:
-        update_cache: true
-        package:
-          - auditd
-          - audispd-plugins
-      when: ansible_pkg_mgr == "apt"
+    - name: Get all users
+      ansible.builtin.getent:
+        database: passwd
 
-    - name: Copy audit.rules
-      ansible.builtin.copy:
-        src: ./config/audit.rules
-        dest: /etc/audit/rules.d/audit.rules
-        mode: '0660'
+    - name: Debug passwd
+      ansible.builtin.set_fact:
+        login_users: "{{ login_users | default([]) + [item.key] }}"
+      when: ("bash" in item.value[-1] or "zsh" in item.value[-1] or "/bin/sh" in item.value[-1])
+      loop: "{{ lookup('dict', ansible_facts['getent_passwd']) | list }}"
+      loop_control:
+        loop_var: item
 
-    - name: Enable && start auditd
-      ansible.builtin.service:
-        name: auditd
-        enabled: true
-        state: restarted
+    - name: Add users from inventory.ini
+      ansible.builtin.set_fact:
+        chpasswd_users: "{{ chpasswd_users|default([]) + login_users }}"
 
-    - name: Install rsyslog
-      ansible.builtin.apt:
-        update_cache: true
-        package:
-          - rsyslog
+    - name: Get chpasswd_users
+      ansible.builtin.debug:
+        msg: "{{ chpasswd_users }}"
 
-    - name: Templating rsyslog
-      ansible.builtin.template:
-        src: ./config/rsyslog.j2
-        dest: /etc/rsyslog.d/audit.conf
-        mode: '0660'
+    - name: Change password for users
+      ansible.builtin.user:
+        name: "{{ user }}"
+        password: "{{ new_password | password_hash('sha512') }}"
+      loop: "{{ chpasswd_users }}"
+      loop_control:
+        loop_var: user
 
-    - name: Enable && start rsyslog
-      ansible.builtin.service:
-        name: rsyslog
-        enabled: true
-        state: restarted
+    - name: Add user {{ new_user }}
+      ansible.builtin.user:
+        name: "{{ new_user }}"
+        password: "{{ new_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        update_password: on_create
 
-    - name: Install velociraptor
-      ansible.builtin.apt:
-        deb: "{{ velociraptor_deb_link }}"
+    - name: iptables ACCEPT ESTABLISHED
+      ansible.builtin.iptables:
+        chain: INPUT
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+        comment: Allow related and established connections
+
+    - name: Set iptables ACCEPT ssh
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: "22"
+        jump: ACCEPT
+        comment: Allow SSH
+
+    - name: Set iptables ACCEPT localhost
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: all
+        destination: 127.0.0.1
+        jump: ACCEPT
+    - name: Set iptables ACCEPT ping
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: icmp
+        jump: ACCEPT
+        comment: Allow icmp Ping
+
+    - name: Set iptables per host rules
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: tcp
+        jump: ACCEPT
+        comment: "Allow {{ ports }}"
+        destination_ports: "{{ ports }}"
+
+    - name: Set iptables DROP all
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: all
+        jump: DROP
+
+    # - name: Install velociraptor
+    #   ansible.builtin.apt:
+    #     deb: "{{ velociraptor_deb_link }}"
