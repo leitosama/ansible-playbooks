@@ -1,5 +1,8 @@
-- name: Configure linux
+- name: Configure users
   hosts: linux
+  gather_facts: False
+  vars:
+    ansible_ssh_pass: "{{ old_password }}"
   tasks:
     - name: Get all users
       ansible.builtin.getent:
@@ -21,14 +24,6 @@
       ansible.builtin.debug:
         msg: "{{ chpasswd_users }}"
 
-    - name: Change password for users
-      ansible.builtin.user:
-        name: "{{ user }}"
-        password: "{{ new_password | password_hash('sha512') }}"
-      loop: "{{ chpasswd_users }}"
-      loop_control:
-        loop_var: user
-
     - name: Add user {{ new_user }}
       ansible.builtin.user:
         name: "{{ new_user }}"
@@ -43,7 +38,21 @@
         commands: ALL
         nopassword: true
 
+    - name: Change password for users
+      ansible.builtin.user:
+        name: "{{ user }}"
+        password: "{{ new_password | password_hash('sha512') }}"
+      loop: "{{ chpasswd_users }}"
+      loop_control:
+        loop_var: user
 
+- name: Configure iptables
+  hosts: linux
+  vars:
+    ansible_ssh_pass: "{{ new_password }}"
+  gather_facts: False
+  strategy: free
+  tasks:
     - name: iptables ACCEPT ESTABLISHED
       ansible.builtin.iptables:
         chain: INPUT
@@ -86,6 +95,13 @@
         protocol: all
         jump: DROP
 
+- name: Install tools
+  hosts: linux
+  vars:
+    ansible_ssh_pass: "{{ new_password }}"
+  gather_facts: False
+  strategy: free
+  tasks:
     - name: Download KESL
       ansible.builtin.get_url:
         url: "{{ kesl_link }}"
@@ -93,11 +109,21 @@
         mode: '+x'
     
     - name: Install KESL
-      ansible.builtin.command: /tmp/kesl.sh
+      ansible.builtin.command: /bin/bash /tmp/kesl.sh
       args:
         creates: /opt/kaspersky/kesl/bin/kesl-setup.pl
 
+    - name: Download klnagent
+      ansible.builtin.get_url:
+        url: "{{ klnagent_link }}"
+        dest: /tmp/klnagent.sh
+        mode: '+x'
+    
+    - name: Install klnagent
+      ansible.builtin.command: /bin/bash /tmp/klnagent.sh
+      args:
+        creates: /opt/kaspersky/klnagent/lib/bin/setup/postinstall.pl
 
-    # - name: Install velociraptor
-    #   ansible.builtin.apt:
-    #     deb: "{{ velociraptor_deb_link }}"
+    - name: Install velociraptor
+      ansible.builtin.apt:
+        deb: "{{ velociraptor_deb_link }}"
