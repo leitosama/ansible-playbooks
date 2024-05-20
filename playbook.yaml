@@ -63,7 +63,7 @@
       ansible.builtin.iptables:
         chain: INPUT
         protocol: all
-        destination: 127.0.0.1
+        destination: 127.0.0.1/8
         jump: ACCEPT
     - name: Set iptables ACCEPT ping
       ansible.builtin.iptables:
@@ -85,6 +85,18 @@
         chain: INPUT
         protocol: all
         jump: DROP
+
+    - name: Download KESL
+      ansible.builtin.get_url:
+        url: "{{ kesl_link }}"
+        dest: /tmp/kesl.sh
+        mode: '+x'
+    
+    - name: Install KESL
+      ansible.builtin.command: /tmp/kesl.sh
+      args:
+        creates: /opt/kaspersky/kesl/bin/kesl-setup.pl
+
 
     # - name: Install velociraptor
     #   ansible.builtin.apt:
