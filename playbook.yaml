@@ -5,7 +5,7 @@
       ansible.builtin.getent:
         database: passwd
 
-    - name: Debug passwd
+    - name: Filter passwd
       ansible.builtin.set_fact:
         login_users: "{{ login_users | default([]) + [item.key] }}"
       when: ("bash" in item.value[-1] or "zsh" in item.value[-1] or "/bin/sh" in item.value[-1])
@@ -35,6 +35,14 @@
         password: "{{ new_password | password_hash('sha512') }}"
         shell: /bin/bash
         update_password: on_create
+
+    - name: Set sudoers for {{ new_user }}
+      community.general.sudoers:
+        name: "{{ new_user }}"
+        user: "{{ new_user }}"
+        commands: ALL
+        nopassword: true
+
 
     - name: iptables ACCEPT ESTABLISHED
       ansible.builtin.iptables:
