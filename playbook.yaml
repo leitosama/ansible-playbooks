@@ -1,9 +1,5 @@
 - name: Configure auditd and stuff
   hosts: all
-  vars:
-    kuma_host: 'localhost'
-    kuma_port: '1337'
-    velociraptor_deb_link: 'https://example.com/velociraptor.deb'
   tasks:
     - name: Install auditd
       ansible.builtin.apt:

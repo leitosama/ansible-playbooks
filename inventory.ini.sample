@@ -1,0 +1,10 @@
+[linux:vars]
+ansible_ssh_user=changeme
+ansible_ssh_pass=changeme
+ansible_connection=ssh
+kuma_host=changeme
+kuma_port=changeme
+velociraptor_deb_link=https://changeme.com/velociraptor.deb
+
+[linux]
+127.0.0.1
