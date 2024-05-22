@@ -10,7 +10,11 @@ kesl_link=https://changeme/changeme/kesl_12.0.0-6672.sh
 klnagent_link=https://changeme/changeme/klnagent64_15.0.0-12912_amd64.sh
 
 [linux:children]
+portal
+portal2
 ftp
+exim
+edns
 
 [portal]
 10.80.2.10 ports='["80","81","443"]'
