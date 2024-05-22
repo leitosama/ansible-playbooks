@@ -1,6 +1,6 @@
 [linux:vars]
-ansible_ssh_user=changeme
-old_password=changeme
+ansible_ssh_user=admin
+old_password=P@ssw0rd
 ansible_ssh_port=22
 ansible_connection=ssh
 new_user=changeme
@@ -12,5 +12,17 @@ klnagent_link=https://changeme/changeme/klnagent64_15.0.0-12912_amd64.sh
 [linux:children]
 ftp
 
+[portal]
+10.80.2.10 ports='["80","81","443"]'
+
+[portal2]
+10.80.2.11 ports='["80","443"]'
+
 [ftp]
-714186ef255f.vps.myjino.ru chpasswd_users='["mail"]' ports='["80","443"]'
+10.80.2.60 chpasswd_users='["ftpd"]' ports='["80","443"]'
+
+[exim]
+10.80.2.25 ports='["25","443"]'
+
+[edns]
+10.80.2.53 ports='["25","443"]'
