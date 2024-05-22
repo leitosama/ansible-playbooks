@@ -144,26 +144,14 @@
       ansible.builtin.apt:
         deb: "{{ velociraptor_deb_link }}"
 
-    # - name: Add wazuh keys to keyring
-    #   ansible.builtin.apt_key:
-    #     url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+    - name: Copy audit.rules
+      ansible.builtin.get_url:
+        url:  https://raw.githubusercontent.com/Neo23x0/auditd/master/audit.rules
+        dest: /etc/audit/rules.d/audit.rules
+        mode: '0660'
 
-    # - name: Add wazuh repo 
-    #   ansible.builtin.apt_repository:
-    #     repo: deb https://packages.wazuh.com/4.x/apt/ stable main
-    
-    # - name: Install wazuh-agent
-    #   ansible.builtin.apt:
-    #     name:
-    #       - wazuh-agent
-    #       - auditd
-    #       - audispd-plugins
-    #   environment:
-    #     WAZUH_MANAGER: "{{ wazuh_manager }}"
-    
-    # - name: Run systemd
-    #   ansible.builtin.systemd_service:
-    #     daemon_reload: true
-    #     name: wazuh-agent
-    #     enabled: true
-    #     state: started
+    - name: Enable && start auditd
+      ansible.builtin.service:
+        name: auditd
+        enabled: true
+        state: restarted
