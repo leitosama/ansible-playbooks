@@ -58,10 +58,9 @@
 
 - name: Configure iptables
   hosts: linux
-  strategy: free
   gather_facts: false
   tasks:
-    - name: iptables ACCEPT ESTABLISHED
+    - name: Set iptables ACCEPT ESTABLISHED
       ansible.builtin.iptables:
         chain: INPUT
         ctstate: ESTABLISHED,RELATED
@@ -92,7 +91,7 @@
     - name: Set iptables per host rules
       ansible.builtin.iptables:
         chain: INPUT
-        protocol: tcp
+        protocol: all
         jump: ACCEPT
         comment: "Allow {{ ports }}"
         destination_ports: "{{ ports }}"
@@ -105,17 +104,16 @@
 
 - name: Fix FTP vuln
   hosts: ftp
-  strategy: free
   gather_facts: false
   tasks:
     - name: Fix /var/www/html mode
       ansible.builtin.file:
         name: /var/www/html
-        mode: 0755
+        mode: '0660'
+
 
 - name: Install tools
   hosts: linux
-  strategy: free
   gather_facts: false
   tasks:
     - name: Download KESL
@@ -123,7 +121,7 @@
         url: "{{ kesl_link }}"
         dest: /tmp/kesl.sh
         mode: '+x'
-    
+  
     - name: Install KESL
       ansible.builtin.command: /bin/bash /tmp/kesl.sh
       args:
@@ -134,7 +132,7 @@
         url: "{{ klnagent_link }}"
         dest: /tmp/klnagent.sh
         mode: '+x'
-    
+  
     - name: Install klnagent
       ansible.builtin.command: /bin/bash /tmp/klnagent.sh
       args:
@@ -149,6 +147,13 @@
         url:  https://raw.githubusercontent.com/Neo23x0/auditd/master/audit.rules
         dest: /etc/audit/rules.d/audit.rules
         mode: '0660'
+
+    - name: Change log_format to ENRICHED
+      lineinfile:
+        path: /etc/audit/auditd.conf
+        regexp: '^log_format = RAW'
+        line: 'log_format = ENRICHED'
+        backup: yes
 
     - name: Enable && start auditd
       ansible.builtin.service:
