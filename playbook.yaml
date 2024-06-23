@@ -1,44 +1,162 @@
-- name: Configure auditd and stuff
-  hosts: all
+- name: Configure users
+  hosts: linux
+  gather_facts: false
+  vars:
+    ansible_ssh_pass: "{{ old_password }}"
+    service_accounts:
+      - suconf
+      - cadm
+      - sadmin
   tasks:
-    - name: Install auditd
+    - name: Backup /etc/shadow
+      ansible.builtin.fetch:
+        src: /etc/shadow
+        dest: ./shadows.bkp/shadow-{{ inventory_hostname }}
+        flat: yes
+
+    - name: Get all users
+      ansible.builtin.getent:
+        database: passwd
+
+    - name: Filter passwd
+      ansible.builtin.set_fact:
+        login_users: "{{ login_users | default([]) + [item.key] }}"
+      when: ("bash" in item.value[-1] or "zsh" in item.value[-1] or "/bin/sh" in item.value[-1])
+      loop: "{{ lookup('dict', ansible_facts['getent_passwd']) | list }}"
+      loop_control:
+        loop_var: item
+
+    - name: Add users from inventory.ini
+      ansible.builtin.set_fact:
+        chpasswd_users: "{{ chpasswd_users|default([]) + login_users | difference(service_accounts) }}"
+
+    - name: Get chpasswd_users
+      ansible.builtin.debug:
+        msg: "{{ chpasswd_users }}"
+
+    - name: Add user {{ new_user }}
+      ansible.builtin.user:
+        name: "{{ new_user }}"
+        password: "{{ new_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        update_password: on_create
+
+    - name: Set sudoers for {{ new_user }}
+      community.general.sudoers:
+        name: "{{ new_user }}"
+        user: "{{ new_user }}"
+        commands: ALL
+        nopassword: true
+
+    - name: Change password for users
+      ansible.builtin.user:
+        name: "{{ user }}"
+        password: "{{ new_password | password_hash('sha512') }}"
+      loop: "{{ chpasswd_users }}"
+      loop_control:
+        loop_var: user
+
+- name: Configure iptables
+  hosts: linux
+  gather_facts: false
+  tasks:
+    - name: Set iptables ACCEPT ESTABLISHED
+      ansible.builtin.iptables:
+        chain: INPUT
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+        comment: Allow related and established connections
+
+    - name: Set iptables ACCEPT ssh
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: "22"
+        jump: ACCEPT
+        comment: Allow SSH
+
+    - name: Set iptables ACCEPT localhost
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: all
+        destination: 127.0.0.1/8
+        jump: ACCEPT
+    - name: Set iptables ACCEPT ping
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: icmp
+        jump: ACCEPT
+        comment: Allow icmp Ping
+
+    - name: Set iptables per host rules
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: all
+        jump: ACCEPT
+        comment: "Allow {{ ports }}"
+        destination_ports: "{{ ports }}"
+
+    - name: Set iptables DROP all
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: all
+        jump: DROP
+
+- name: Fix FTP vuln
+  hosts: ftp
+  gather_facts: false
+  tasks:
+    - name: Fix /var/www/html mode
+      ansible.builtin.file:
+        name: /var/www/html
+        mode: '0660'
+
+
+- name: Install tools
+  hosts: linux
+  gather_facts: false
+  tasks:
+    - name: Download KESL
+      ansible.builtin.get_url:
+        url: "{{ kesl_link }}"
+        dest: /tmp/kesl.sh
+        mode: '+x'
+  
+    - name: Install KESL
+      ansible.builtin.command: /bin/bash /tmp/kesl.sh
+      args:
+        creates: /opt/kaspersky/kesl/bin/kesl-setup.pl
+
+    - name: Download klnagent
+      ansible.builtin.get_url:
+        url: "{{ klnagent_link }}"
+        dest: /tmp/klnagent.sh
+        mode: '+x'
+  
+    - name: Install klnagent
+      ansible.builtin.command: /bin/bash /tmp/klnagent.sh
+      args:
+        creates: /opt/kaspersky/klnagent64/lib/bin/setup/postinstall.pl
+
+    - name: Install velociraptor
       ansible.builtin.apt:
-        update_cache: true
-        package:
-          - auditd
-          - audispd-plugins
-      when: ansible_pkg_mgr == "apt"
+        deb: "{{ velociraptor_deb_link }}"
 
     - name: Copy audit.rules
-      ansible.builtin.copy:
-        src: ./config/audit.rules
+      ansible.builtin.get_url:
+        url:  https://raw.githubusercontent.com/Neo23x0/auditd/master/audit.rules
         dest: /etc/audit/rules.d/audit.rules
         mode: '0660'
+
+    - name: Change log_format to ENRICHED
+      lineinfile:
+        path: /etc/audit/auditd.conf
+        regexp: '^log_format = RAW'
+        line: 'log_format = ENRICHED'
+        backup: yes
 
     - name: Enable && start auditd
       ansible.builtin.service:
         name: auditd
         enabled: true
         state: restarted
-
-    - name: Install rsyslog
-      ansible.builtin.apt:
-        update_cache: true
-        package:
-          - rsyslog
-
-    - name: Templating rsyslog
-      ansible.builtin.template:
-        src: ./config/rsyslog.j2
-        dest: /etc/rsyslog.d/audit.conf
-        mode: '0660'
-
-    - name: Enable && start rsyslog
-      ansible.builtin.service:
-        name: rsyslog
-        enabled: true
-        state: restarted
-
-    - name: Install velociraptor
-      ansible.builtin.apt:
-        deb: "{{ velociraptor_deb_link }}"
